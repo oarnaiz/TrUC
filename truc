@@ -1,0 +1,194 @@
+#!/usr/bin/env perl
+use strict;
+use FindBin qw($Bin);
+use lib "$Bin/lib/";
+
+my $VERSION = '1.00';
+
+use Getopt::Long;
+use Parallel::ForkManager;
+
+
+use TrUC::Config;
+
+
+=head1 NAME
+
+ TrUC main script - Transcription Units by Coverage
+
+=head1 AUTHORS
+
+2017, I2BC - CNRS , GNU GPL3
+
+=cut
+
+my ($SEQ_ID,$OUT_DIR,$VERBOSE,$NO_PROGRESS_BAR,$QUIET,$HELP);
+
+
+# COMMON PARAMETERS
+my ($SEQ_ID,$GENOME,@BAMs,$MIN_COVERAGE,$MIN_SCORE, $NB_REPLICATES,$UNORIENTED,);
+my $THREADS=6;
+
+
+# TTS
+my ($NB_MIN_A);
+
+# transcript
+my ($MIN_INTRON,$MAX_INTRON,$MIN_INTRON_COVERAGE,$NO_OVERLAP,$MIN_LENGTH,$MIN_SPLICING_RATE,$INTRON_CONSENSUS,$TSS,$TTS);
+
+# UTR 
+my ($ANNOTATION);
+
+#############################################
+# GET PARAMETERS
+#############################################
+
+my %MODES = TrUC::Config->get_modes();
+
+my $MODE = shift;
+#Reads options from command line
+GetOptions(  
+	    
+	# common options
+	    '-verbose' => \$VERBOSE,
+	    '-help' => \$HELP,		
+	    '-quiet' => \$QUIET, 
+            '-no_progress_bar' => \$NO_PROGRESS_BAR,
+	    
+	    '-genome=s' => \$GENOME,
+	    '-bam=s' => \@BAMs,
+	    '-threads=i' => \$THREADS, 
+	    '-out_dir=s' => \$OUT_DIR, 
+	    '-min_coverage=i' => \$MIN_COVERAGE, 
+	    '-min_score=i' => \$MIN_SCORE, 
+	    '-nb_replicates=i' => \$NB_REPLICATES,
+	    '-unoriented' => \$UNORIENTED,	
+	    '-seq_id=s' => \$SEQ_ID,   
+	    
+	# TTS options    
+	    '-nb_min_A=i' => \$NB_MIN_A,
+	
+	# transcript options    
+	    '-tss=s' => \$TSS,
+	    '-tts=s' => \$TTS,
+            '-min_intron_length=i' => \$MIN_INTRON,
+	    '-max_intron_length=i' => \$MAX_INTRON,
+	    '-min_intron_coverage=i' => \$MIN_INTRON_COVERAGE,
+	    '-min_length=i' => \$MIN_LENGTH,
+	    '-min_splicing_rate=s' => \$MIN_SPLICING_RATE,
+	    '-intron_consensus' => \$INTRON_CONSENSUS,
+	    '-no_overlap' => \$NO_OVERLAP,
+	
+	# UTR options    
+	    '-annotation=s' => \$ANNOTATION,
+	    
+	     
+	   );
+
+die usage() if(!$MODE or !$MODES{$MODE});
+
+#############################################
+# MAIN
+#############################################
+
+
+my $PACKAGE = 'TrUC::'.$MODE;
+$PACKAGE.='_unoriented' if($UNORIENTED and $MODE eq 'Transcript');
+
+
+my $factory = $PACKAGE->new({	   
+				-seq_id => $SEQ_ID,
+				-threads => $THREADS,	
+				-verbose=>$VERBOSE ? 'TRUE' : 'FALSE',	
+				-quiet=>$QUIET ? 'TRUE' : 'FALSE',
+				-version => $VERSION,	
+				 
+				# common options
+				-genome => $GENOME,
+				-out_dir => $OUT_DIR,
+				-bam => \@BAMs,
+				-min_coverage => $MIN_COVERAGE,
+	                        -min_score => $MIN_SCORE, 
+				-nb_replicates => $NB_REPLICATES,
+				
+				# TSS
+				-nb_min_A  => $NB_MIN_A, 
+	
+				# transcript options    
+	   			-tss  => $TSS,
+	    			-tts  => $TTS,
+            			-min_intron_length => $MIN_INTRON,
+	    			-max_intron_length => $MAX_INTRON,
+				-min_intron_coverage => $MIN_INTRON_COVERAGE,
+				-intron_consensus => $INTRON_CONSENSUS  ? 'TRUE' : 'FALSE',	
+	                        -min_splicing_rate  => $MIN_SPLICING_RATE,
+	    			-min_length => $MIN_LENGTH,
+	                        -no_overlap => $NO_OVERLAP ? 'TRUE' : 'FALSE',	
+				
+	    		        -unoriented  => $UNORIENTED ? 'TRUE' : 'FALSE',	
+				
+				
+				# transcript options  
+				-annotation => $ANNOTATION, 	 
+
+				});
+
+# Check we have all parameters
+$factory->_usage if($HELP or !$factory->_check_mandatory_parameters);
+
+# prepare directory
+$factory->init;
+
+my %RESULTS;
+
+
+my $pm = new Parallel::ForkManager($THREADS);
+
+$pm -> run_on_finish (
+  sub {
+    my ($pid, $exit_code, $ident, $exit_signal, $core_dump, $data) = @_;
+    $factory->save($data);    
+  }
+);
+
+
+my $nb_seq =`grep -c '>' $GENOME `;
+
+my $PROGRESS = Term::ProgressBar->new ({count => $nb_seq}) if(!$VERBOSE and !$NO_PROGRESS_BAR);
+my $p=0;
+my $seqio = new Bio::SeqIO(-file=> $GENOME,-format=>'Fasta');
+
+while(my $seq = $seqio->next_seq) {
+   my $seq_id = $seq->id;
+   next if($SEQ_ID and $seq_id ne $SEQ_ID );
+   # Forks and returns the pid for the child:
+   $PROGRESS->update($p) if(!$VERBOSE and !$NO_PROGRESS_BAR);
+   $p++;
+   
+   my $pid = $pm->start and next; 
+   my %results = $factory->calculate($seq);
+   
+   # Terminates the child process
+   $pm->finish(0,\%results);
+
+}
+
+$pm->wait_all_children;  
+
+$factory->write_results;
+
+$factory->finish(\%RESULTS);
+exit 1;
+
+
+#############################################
+# FUNCTIONS
+#############################################
+
+sub usage {
+   print STDERR "$0 (version ".$VERSION.") [MODE] : Transcription Units by Coverage\n";   
+   foreach my $mode (sort {$MODES{$a}->{N} <=> $MODES{$b}->{N}} keys %MODES) {
+      print STDERR " $mode : $MODES{$mode}->{DESC}\n";
+   }
+   exit 0;
+}

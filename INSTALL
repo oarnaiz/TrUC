@@ -1,0 +1,62 @@
+TrUC INSTALLATION 
+
+1. SYSTEM REQUIREMENTS
+######################
+
+  - A UNIX based operating system ( or cygwin unix emulation system for windows ). 
+
+  - Perl 5.8.0 or higher installed.
+
+2. SOFTWARE REQUIREMENTS
+########################
+
+  - samtools (0.1.18 or later)
+  
+3. INSTALLATION
+###############
+
+
+  - Download the files to the directory you wish to install them in.
+            git clone https://github.com/oarnaiz/TrUC
+            cd TrUC
+  
+  - Check the distribution by invoking Perl on the "check" script, i.e.:
+            perl ./check
+
+     The check script will check for you all the pre-requisite software. (See section 4)
+
+  - Test ParTIES
+  
+            perl ./truc
+	    
+    Note : You should see the usage message :	    
+
+  - Add to your path
+
+    Add the following to your $HOME/.bashrc file
+    export PATH=$PATH:[/path/to/TrUC]
+    source $HOME/.bashrc
+  
+
+4. EXAMPLE OF PROCEDURE FOR THE REQUIREMENTS
+#############################################
+
+
+   
+   # You need to install zlib-devel (or whatever the equivalent on your server distribution is). 
+   sudo yum install perl-File-Which
+   # or
+   sudo apt-get install libfile-which-perl
+
+   ##########################
+   # PERL MODULES
+   ##########################
+   cpan
+   
+   cpan> 
+
+   cpan> install Parallel::ForkManager
+   cpan> install Bio::GFF3::LowLevel
+   cpan> install Bio::DB::Sam
+
+   cpan> q
