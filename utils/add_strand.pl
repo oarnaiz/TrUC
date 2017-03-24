@@ -3,7 +3,7 @@ use strict;
 use Getopt::Long;
 use Bio::DB::Fasta;
 
-my ($LIBRARY_TYPE) = ('fr-secondstrand');
+my ($LIBRARY_TYPE) = ('fr-firststrand');
 
 #Reads options from command line
 GetOptions( 
@@ -24,6 +24,8 @@ while(<STDIN>) {
      my $line2 = <STDIN>;
      chomp $line2;
      my ($id2,$flag2,$ref2,$pos2,$mapq2,$cigar2,$mrn2,$mpos2,$tlen2,$seq2,$qual2,@opt2) = split /\t/,$line2;     
+     
+     die "SAM grouped by reads" if($id1 ne $id2);
      
      next if($ref1 ne $ref2 or $pos1 == $pos2);
      
