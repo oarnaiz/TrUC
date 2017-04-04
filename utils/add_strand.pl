@@ -31,9 +31,9 @@ while(<STDIN>) {
      
      my $strand;
      if($pos1 < $mpos1 and $pos2 > $mpos2) {
-     	$strand = ($LIBRARY_TYPE ne 'fr-secondstrand') ? '+' : '-';
+     	$strand = ($LIBRARY_TYPE ne 'fr-firststrand') ? '+' : '-';
      } elsif($pos1 > $mpos1 and $pos2 < $mpos2) {
-     	$strand = ($LIBRARY_TYPE ne 'fr-secondstrand') ? '-' : '+';
+     	$strand = ($LIBRARY_TYPE ne 'fr-firststrand') ? '-' : '+';
      } else {
      	die "\n",$line1,"\n",$line2;
      }
